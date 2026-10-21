@@ -21,7 +21,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseMasterPlaylist, parseMediaPlaylist, inspectInitSegment } from '../lib/hls.js';
-import { extractItemFromHtml } from '../lib/extractors/tiktok.js';
+import { extractItemFromHtml, variantsFromItem } from '../lib/extractors/tiktok.js';
+import { parsePage as parseInstagramPage } from '../lib/extractors/instagram.js';
 import { parsePin, pinIdFromUrl } from '../lib/extractors/pinterest.js';
 import { direct } from '../lib/extractors/generic.js';
 import { finalizeVariants, scrapeImageCandidate } from '../lib/util.js';
@@ -127,7 +128,79 @@ function testParsers() {
       const playAddr = typeof item.video?.playAddr === 'string' ? item.video.playAddr : item.video?.playAddr?.UrlList?.[0];
       check('TikTok: play address is an https URL', /^https:\/\//.test(playAddr ?? ''), playAddr);
       check('TikTok: item has a description or an id', Boolean(item.desc || item.id || item.aweme_id));
+      const parsed = variantsFromItem(item);
+      check(
+        'TikTok: video qualities are labelled by height, not internal quality ids',
+        parsed.variants.filter((variant) => variant.kind === 'video').every((variant) => /^\d+p$/.test(variant.label)),
+        parsed.variants.filter((variant) => variant.kind === 'video').map((variant) => variant.label).join(', ')
+      );
+      check(
+        'TikTok: a portrait video reports its real dimensions',
+        parsed.variants.some((variant) => variant.kind === 'video' && variant.width === 720 && variant.height === 1280),
+        parsed.variants.map((variant) => `${variant.width}x${variant.height}`).join(', ')
+      );
     }
+  }
+
+  const tiktokPhotoPath = path.join(FIXTURES, 'tiktok-photo.html');
+  if (!fs.existsSync(tiktokPhotoPath)) {
+    skip('TikTok photo parser', 'fixture missing');
+  } else {
+    const found = extractItemFromHtml(fs.readFileSync(tiktokPhotoPath, 'utf8'));
+    check('TikTok: mobile photo payload parses from a real page', Boolean(found?.item?.imagePost), found ? '' : 'no imagePost found');
+    if (found?.item) {
+      const parsed = variantsFromItem(found.item);
+      const images = parsed.variants.filter((variant) => variant.kind === 'image');
+      check('TikTok: a photo post yields one variant per image', images.length === 2, images.map((variant) => variant.label).join(', '));
+      check(
+        'TikTok: photo variants keep their original dimensions',
+        images.every((variant) => variant.width === 1080 && variant.height === 1350),
+        images.map((variant) => `${variant.width}x${variant.height}`).join(', ')
+      );
+      check(
+        'TikTok: a photo post is not turned into a video',
+        !parsed.variants.some((variant) => variant.kind === 'video'),
+        parsed.variants.map((variant) => variant.kind).join(', ')
+      );
+    }
+  }
+
+  // --- Instagram ----------------------------------------------------
+  const instagramCarouselPath = path.join(FIXTURES, 'instagram-carousel.html');
+  if (!fs.existsSync(instagramCarouselPath)) {
+    skip('Instagram carousel parser', 'fixture missing');
+  } else {
+    const result = parseInstagramPage(
+      fs.readFileSync(instagramCarouselPath, 'utf8'),
+      'https://www.instagram.com/p/DU_kmW6Eb3G/'
+    );
+    const videos = result?.variants.filter((variant) => variant.kind === 'video') ?? [];
+    const images = result?.variants.filter((variant) => variant.kind === 'image') ?? [];
+    check('Instagram: a photo carousel yields its images', images.length === 3, images.map((variant) => variant.label).join(', '));
+    check('Instagram: a mixed carousel keeps its video', videos.length === 1, videos.map((variant) => variant.label).join(', '));
+    check(
+      'Instagram: carousel images use the largest file, not a 640px crop',
+      images.every((variant) => variant.width === 1080 && variant.height === 1350),
+      images.map((variant) => `${variant.width}x${variant.height}`).join(', ')
+    );
+    check(
+      'Instagram: carousel metadata names the owner and item count',
+      result?.author === "Instagram’s @Creators" && result?.note === 'Carousel: 4 items (1 video, 3 images).',
+      `${result?.author} / ${result?.note}`
+    );
+  }
+
+  const instagramImagePath = path.join(FIXTURES, 'instagram-image.html');
+  if (!fs.existsSync(instagramImagePath)) {
+    skip('Instagram image parser', 'fixture missing');
+  } else {
+    const result = parseInstagramPage(
+      fs.readFileSync(instagramImagePath, 'utf8'),
+      'https://www.instagram.com/p/DU_kmW6Eb3G/'
+    );
+    check('Instagram: a single photo post yields an image', result?.variants.length === 1 && result.variants[0].kind === 'image', JSON.stringify(result?.variants));
+    check('Instagram: a single image keeps its dimensions', result?.variants[0]?.width === 1080 && result?.variants[0]?.height === 1350, `${result?.variants[0]?.width}x${result?.variants[0]?.height}`);
+    check('Instagram: a single image has a title', result?.title === 'A single photo post.', result?.title);
   }
 
   // --- Pinterest ----------------------------------------------------
@@ -426,7 +499,7 @@ async function testServer() {
   const cases = [
     ['X link without a status id', 'https://x.com/someone', /post id/i],
     ['Instagram link without a post code', 'https://www.instagram.com/', /post code/i],
-    ['TikTok link without a video id', 'https://www.tiktok.com/@someone', /video id/i],
+    ['TikTok link without a post id', 'https://www.tiktok.com/@someone', /post id/i],
     ['Reddit link without a post id', 'https://www.reddit.com/r/videos/', /post id/i],
     ['Streamable link without a code', 'https://streamable.com/', /video code/i],
     ['Vimeo link without an id', 'https://vimeo.com/', /video id/i],
@@ -736,6 +809,8 @@ async function testLive() {
     // ids are all real, public posts - a good source when hunting samples.
     ['X', 'https://x.com/historyinmemes/status/1790637656616943991'],
     ['TikTok', 'https://www.tiktok.com/@scout2015/video/6718335390845095173'],
+    ['TikTok photo', 'https://www.tiktok.com/@realmadrid/photo/7375648582063459616'],
+    ['Instagram carousel', 'https://www.instagram.com/p/DU_kmW6Eb3G/'],
     ['Pinterest image', 'https://www.pinterest.com/pin/312859505387286591/'],
     ['Pinterest video', 'https://www.pinterest.com/pin/869757746771625616/'],
     ['generic page', 'https://www.w3schools.com/html/html5_video.asp'],
@@ -765,6 +840,31 @@ async function testLive() {
             'Pinterest video: a video option is offered',
             res.json.result.variants.some((v) => v.kind === 'video'),
             JSON.stringify(res.json.result.variants.map((v) => v.kind))
+          );
+        }
+        if (label === 'TikTok photo') {
+          check(
+            'TikTok photo: every image is offered',
+            res.json.result.variants.filter((v) => v.kind === 'image').length >= 2,
+            JSON.stringify(res.json.result.variants.map((v) => v.label))
+          );
+          check(
+            'TikTok photo: the photo post is not turned into a video',
+            res.json.result.variants.every((v) => v.kind === 'image'),
+            JSON.stringify(res.json.result.variants.map((v) => v.kind))
+          );
+        }
+        if (label === 'Instagram carousel') {
+          check(
+            'Instagram carousel: images and the video are both offered',
+            res.json.result.variants.some((v) => v.kind === 'image') &&
+              res.json.result.variants.some((v) => v.kind === 'video'),
+            JSON.stringify(res.json.result.variants.map((v) => v.kind))
+          );
+          check(
+            'Instagram carousel: the media count is reported',
+            /Carousel: 4 items/.test(res.json.result.note ?? ''),
+            res.json.result.note
           );
         }
         if (label === 'X') {

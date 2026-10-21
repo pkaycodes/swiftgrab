@@ -71,9 +71,9 @@ extra to install:
 | Source | How it works |
 | --- | --- |
 | **X / Twitter** | The syndication payload behind embedded tweets, via the FxTwitter mirror with X's own CDN as fallback. Every MP4 quality on offer. |
-| **TikTok** | The hydration JSON inside the post page. |
+| **TikTok** | The hydration JSON inside the post page, with the mobile photo payload as a fallback. Video posts return every quality; photo posts return each original image. |
 | **Facebook** | The page's own video JSON and, where present, an HLS stream. |
-| **Instagram** | The post's shared data block. |
+| **Instagram** | The main post object from the rendered page or GraphQL. Photos, videos and mixed carousels are read from the post itself, never from the recommended posts around it. |
 | **Reddit** | The public post JSON where reachable, otherwise oEmbed for metadata. See [Reddit](#reddit-is-the-awkward-one). |
 | **Vimeo** | The config block on the player page. |
 | **Pinterest** | The pin's own JSON (initial state and relay responses): image pins return the original picture, video pins return the MP4. |
@@ -82,8 +82,10 @@ extra to install:
 | **Any page with a video or image** | Fallback scraper: finds `<video>`, `<source>` and `<audio>` tags, OpenGraph video tags, and JSON-LD. If there is no video, it falls back to the page's `og:image` / `twitter:image` / JSON-LD image. |
 
 Pictures use the same queue as videos: direct image URLs, Pinterest image pins,
-and the main image of an ordinary page. Video is always tried first, so a page
-that has both returns the video; the image is the fallback.
+TikTok photo posts, Instagram photo and mixed carousel posts, and the main image
+of an ordinary page. On a generic page that has both a video and an image,
+video is tried first and the image is the fallback; native photo posts return
+their images even when the page also carries an unrelated video.
 
 **yt-dlp fallback** - for everything else. YouTube, Twitch, SoundCloud,
 Bilibili, Rumble and about a thousand more. One click to install, no Homebrew

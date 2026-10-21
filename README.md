@@ -169,3 +169,7 @@ or content whose terms allow it.
 
 SwiftGrab deliberately ships without login or cookie support, so it only ever
 sees what a logged-out visitor sees.
+
+## Licence
+
+MIT - see [LICENSE](LICENSE).

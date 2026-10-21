@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "start:render": "node server.js --lan --no-open",
     "lan": "node server.js --lan",
     "test": "node test/run.js"
   },

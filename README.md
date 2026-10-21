@@ -40,6 +40,26 @@ lists them, can preview them in a tab, and can delete them.
 **Requirements:** Node 18 or newer (developed and tested on Node 24). Nothing
 else.
 
+## Deploying it
+
+On **Render**, SwiftGrab detects `RENDER=true` and binds to `0.0.0.0`
+automatically, using the `PORT` that Render assigns. The default `npm start`
+works as-is; an explicit equivalent is:
+
+```
+node server.js --lan --no-open      # or: npm run start:render
+```
+
+On another platform, set `SWIFTGRAB_HOST=0.0.0.0` (or pass `--lan`) and make
+sure the platform's `PORT` is honoured.
+
+Two things to know about running it in a container:
+
+- The filesystem is ephemeral. Downloads and the optional yt-dlp binary are
+  written under the app directory and disappear on redeploy or restart.
+- The app has no login. A public URL is a public downloader — see
+  [Security](#security) first.
+
 ---
 
 ## What it handles
@@ -112,7 +132,8 @@ reach it. So:
   a public URL cannot bounce the server into its own network. `--allow-private`
   turns this off, for when you deliberately want to grab something on your LAN.
 - **Bound to localhost by default.** Use `--lan` only on a network you trust:
-  the server has no authentication.
+  the server has no authentication. The exception is a hosted platform such as
+  Render, where binding `0.0.0.0` is the only way to receive traffic.
 - Static file serving is path-confined, and the library/reveal endpoints clamp
   every path to the downloads folder.
 

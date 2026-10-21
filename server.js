@@ -41,9 +41,12 @@ const value = (name, fallback) => {
 };
 
 const PORT = Number(value('port', process.env.PORT ?? 8787));
-const HOST = flag('lan') ? '0.0.0.0' : '127.0.0.1';
+const ON_RENDER = Boolean(process.env.RENDER);
+const HOST = process.env.SWIFTGRAB_HOST
+  ? process.env.SWIFTGRAB_HOST
+  : (flag('lan') || ON_RENDER ? '0.0.0.0' : '127.0.0.1');
 const ALLOW_PRIVATE = flag('allow-private');
-const OPEN_BROWSER = !flag('no-open');
+const OPEN_BROWSER = !flag('no-open') && !ON_RENDER;
 
 const jobs = new JobManager({ downloadDir: DOWNLOAD_DIR, allowPrivate: ALLOW_PRIVATE });
 

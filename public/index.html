@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SwiftGrab - paste a link, get the video</title>
+    <meta name="description" content="Paste a video link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and more. SwiftGrab pulls the file straight to your machine." />
+    <meta name="theme-color" content="#0b0d14" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="aurora" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#8b5cf6" />
+              <stop offset="100%" stop-color="#22d3ee" />
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="28" height="28" rx="9" fill="url(#g)" />
+          <path d="M16 8v12m0 0 5-5m-5 5-5-5" stroke="#0b0d14" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          <path d="M9.5 24h13" stroke="#0b0d14" stroke-width="2.6" stroke-linecap="round" />
+        </svg>
+        <div class="brand-text">
+          <h1>SwiftGrab</h1>
+          <p>Paste a link, get the file</p>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button type="button" class="pill" id="ytdlp-pill" data-state="unknown" title="Click to manage the yt-dlp fallback engine">
+          <span class="dot"></span>
+          <span id="ytdlp-label">Checking yt-dlp…</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="grabber" aria-labelledby="grab-heading">
+        <h2 id="grab-heading" class="sr-only">Download a video</h2>
+        <form id="grab-form" autocomplete="off">
+          <div class="field">
+            <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10.6 13.4a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.2 1.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path d="M13.4 10.6a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.2-1.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <input
+              id="url-input"
+              name="url"
+              type="text"
+              inputmode="url"
+              spellcheck="false"
+              placeholder="https://x.com/… · tiktok.com/… · facebook.com/…"
+              aria-label="Video link"
+            />
+            <button type="button" class="ghost-btn" id="paste-btn" title="Paste from clipboard">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 6H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span>Paste</span>
+            </button>
+            <button type="button" class="clear-btn" id="clear-btn" aria-label="Clear">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <button type="submit" class="primary-btn" id="grab-btn">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="label">Grab it</span>
+          </button>
+        </form>
+
+        <div class="chips" id="site-chips" aria-label="Supported sites"></div>
+      </section>
+
+      <section id="result" class="result" hidden aria-live="polite"></section>
+
+      <section id="downloads" class="panel" hidden>
+        <div class="panel-head">
+          <h2>Transfers</h2>
+          <button type="button" class="text-btn" id="clear-finished">Clear finished</button>
+        </div>
+        <div id="job-list" class="job-list"></div>
+      </section>
+
+      <section id="library" class="panel" hidden>
+        <div class="panel-head">
+          <h2>On disk</h2>
+          <div class="panel-head-actions">
+            <span class="muted" id="library-dir"></span>
+            <button type="button" class="text-btn" id="reveal-folder">Open folder</button>
+          </div>
+        </div>
+        <div id="library-list" class="library-list"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        SwiftGrab downloads videos for personal use. Respect each platform's terms and the
+        rights of the people who made the videos you save.
+      </p>
+    </footer>
+
+    <div id="toasts" class="toasts" aria-live="assertive"></div>
+
+    <dialog id="ytdlp-dialog">
+      <h3>yt-dlp fallback engine</h3>
+      <p id="ytdlp-copy"></p>
+      <div id="ytdlp-progress-wrap" class="progress-wrap" hidden>
+        <div class="progress"><div class="progress-bar" id="ytdlp-progress"></div></div>
+        <span class="muted" id="ytdlp-progress-text"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="text-btn" id="ytdlp-close">Close</button>
+        <button type="button" class="primary-btn small" id="ytdlp-install">Install yt-dlp</button>
+      </div>
+    </dialog>
+
+    <template id="job-template">
+      <article class="job">
+        <div class="job-main">
+          <div class="job-title-row">
+            <span class="job-badge"></span>
+            <h3 class="job-title"></h3>
+          </div>
+          <div class="progress"><div class="progress-bar"></div></div>
+          <div class="job-meta">
+            <span class="job-status"></span>
+            <span class="job-speed"></span>
+            <span class="job-size"></span>
+          </div>
+          <p class="job-error"></p>
+        </div>
+        <div class="job-actions">
+          <button type="button" class="ghost-btn mini job-preview" hidden>Preview</button>
+          <a class="ghost-btn mini job-save" hidden download>Save to this device</a>
+          <button type="button" class="ghost-btn mini job-reveal" hidden>Finder</button>
+          <button type="button" class="ghost-btn mini job-cancel">Cancel</button>
+          <button type="button" class="ghost-btn mini job-dismiss" hidden>Dismiss</button>
+        </div>
+      </article>
+    </template>
+  </body>
+  <script type="module" src="/app.js"></script>
+</html>

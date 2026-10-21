@@ -1,0 +1,16 @@
+{
+  "name": "swiftgrab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SwiftGrab - paste a video link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and more, get the file. Native extractors with an optional yt-dlp fallback.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "lan": "node server.js --lan",
+    "test": "node test/run.js"
+  },
+  "dependencies": {}
+}

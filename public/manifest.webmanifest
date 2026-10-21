@@ -1,0 +1,17 @@
+{
+  "name": "SwiftGrab",
+  "short_name": "SwiftGrab",
+  "description": "Paste a video link, get the file.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d14",
+  "theme_color": "#0b0d14",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

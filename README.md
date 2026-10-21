@@ -1,12 +1,13 @@
 # SwiftGrab
 
-Paste a video link, get the file.
+Paste a link, get the video or image.
 
 ![SwiftGrab](docs/screenshot.png)
 
 SwiftGrab is a small local web app: a Node HTTP server plus a browser page. You
-drop in a link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and plenty of
-others, pick a quality, and watch it land in `downloads/`.
+drop in a link from X, TikTok, Facebook, Instagram, Reddit, Vimeo, Pinterest and
+plenty of others, pick a quality, and watch it land in `downloads/`. It handles
+pictures as well as video.
 
 It has **no dependencies at all** - no `npm install`, no build step, no
 Homebrew. Just Node.
@@ -75,9 +76,14 @@ extra to install:
 | **Instagram** | The post's shared data block. |
 | **Reddit** | The public post JSON where reachable, otherwise oEmbed for metadata. See [Reddit](#reddit-is-the-awkward-one). |
 | **Vimeo** | The config block on the player page. |
-| **Streamable, Dailymotion, Tumblr, Pinterest, Imgur** | Each site's own API or page data. |
-| **Any direct media link** | A URL that already points at an `.mp4`/`.m3u8`/`.webm` etc. is fetched straight. |
-| **Any page with a video** | Fallback scraper: finds `<video>`, `<source>` and `<audio>` tags, OpenGraph video tags, and JSON-LD. |
+| **Pinterest** | The pin's own JSON (initial state and relay responses): image pins return the original picture, video pins return the MP4. |
+| **Streamable, Dailymotion, Tumblr, Imgur** | Each site's own API or page data. |
+| **Any direct media link** | A URL that already points at an `.mp4`/`.m3u8`/`.webm`/`.jpg`/`.png` etc. is fetched straight. Extensionless CDN URLs are probed for their content type. |
+| **Any page with a video or image** | Fallback scraper: finds `<video>`, `<source>` and `<audio>` tags, OpenGraph video tags, and JSON-LD. If there is no video, it falls back to the page's `og:image` / `twitter:image` / JSON-LD image. |
+
+Pictures use the same queue as videos: direct image URLs, Pinterest image pins,
+and the main image of an ordinary page. Video is always tried first, so a page
+that has both returns the video; the image is the fallback.
 
 **yt-dlp fallback** - for everything else. YouTube, Twitch, SoundCloud,
 Bilibili, Rumble and about a thousand more. One click to install, no Homebrew
@@ -94,8 +100,8 @@ everything is fine.
 
 ## How a download is chosen
 
-For each link SwiftGrab lists the variants it actually found, and picks the
-engine that can fetch each one:
+For each link SwiftGrab lists the video, image and audio variants it actually
+found, and picks the engine that can fetch each one:
 
 - **direct** - a plain HTTP GET of a progressive file, with range-resume and
   retries.
@@ -176,19 +182,20 @@ node test/run.js --live   # also hits the real sites
 ```
 
 The offline suite runs against HTML and playlists captured from the real sites,
-so a broken regex fails the build. The live suite confirms the extractors still
-understand today's pages, and skips (rather than fails) when a site blocks or
-rate-limits the request.
+so a broken regex fails the build. It also downloads a real MP4 and a real JPEG
+through the queue and checks the bytes and content types. The live suite
+confirms the extractors still understand today's pages, and skips (rather than
+fails) when a site blocks or rate-limits the request.
 
 ---
 
 ## Copyright
 
 SwiftGrab is a downloader. It has no opinion about what you point it at, and no
-ability to give you permission for it either. Downloading video may breach a
-site's terms of service or someone's copyright, and that is on you. Use it for
-things you have the right to save - your own uploads, openly licensed material,
-or content whose terms allow it.
+ability to give you permission for it either. Downloading video or images may
+breach a site's terms of service or someone's copyright, and that is on you. Use
+it for things you have the right to save - your own uploads, openly licensed
+material, or content whose terms allow it.
 
 SwiftGrab deliberately ships without login or cookie support, so it only ever
 sees what a logged-out visitor sees.

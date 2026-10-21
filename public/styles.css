@@ -514,6 +514,11 @@ main {
   color: #67e8f9;
 }
 
+.variant-kind.image {
+  background: rgb(244 114 182 / 0.14);
+  color: #f9a8d4;
+}
+
 .variant-kind svg {
   width: 15px;
   height: 15px;

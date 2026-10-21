@@ -7,6 +7,8 @@ const ICON = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 10 4.5-2.6a1 1 0 0 1 1.5.9v7.4a1 1 0 0 1-1.5.9L15 14" stroke-linecap="round"/><rect x="3" y="7" width="12" height="10" rx="2.5"/></svg>',
   audio:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V6l9-2v12" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>',
+  image:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3.5 17 5-4 4 3 3-2.5 5 4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   download:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 19h14" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
@@ -79,6 +81,29 @@ function relativeTime(timestamp) {
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tif', 'tiff']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'aac', 'wav', 'ogg', 'flac']);
+
+function variantKind(variant) {
+  return variant?.kind === 'image' ? 'image' : variant?.kind === 'audio' ? 'audio' : 'video';
+}
+
+function iconForKind(kind) {
+  if (kind === 'image') return ICON.image;
+  if (kind === 'audio') return ICON.audio;
+  return ICON.video;
+}
+
+function fileIcon(name) {
+  const ext = String(name).split('.').pop()?.toLowerCase();
+  const kind = IMAGE_EXTENSIONS.has(ext) ? 'image' : AUDIO_EXTENSIONS.has(ext) ? 'audio' : 'video';
+  return `<span class="variant-kind ${kind === 'video' ? '' : kind}">${iconForKind(kind)}</span>`;
+}
+
+function countLabel(count, noun) {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -167,7 +192,7 @@ function needsYtdlp(variant) {
 async function resolveLink(rawUrl) {
   const url = rawUrl.trim();
   if (!url) {
-    toast('Nothing to grab', 'Paste a video link first.', { kind: 'error' });
+    toast('Nothing to grab', 'Paste a link first.', { kind: 'error' });
     return;
   }
 
@@ -208,10 +233,21 @@ function renderResult() {
   const badgeColor =
     state.health?.sites?.find((site) => site.id === engine)?.color ?? 'var(--accent)';
 
+  const kinds = result.variants.reduce((acc, variant) => {
+    const kind = variantKind(variant);
+    acc[kind] = (acc[kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  const kindBits = [
+    kinds.video ? countLabel(kinds.video, 'video') : null,
+    kinds.image ? countLabel(kinds.image, 'image') : null,
+    kinds.audio ? countLabel(kinds.audio, 'audio') : null,
+  ].filter(Boolean);
+
   const metaBits = [
     result.author ? escapeHtml(result.author) : null,
     result.duration ? formatDuration(result.duration) : null,
-    `${result.variants.length} quality option${result.variants.length === 1 ? '' : 's'}`,
+    kindBits.length ? kindBits.join(' · ') : null,
     `${elapsedMs} ms`,
   ].filter(Boolean);
 
@@ -223,14 +259,20 @@ function renderResult() {
 
   const variants = result.variants
     .map((variant) => {
+      const kind = variantKind(variant);
       const size = variant.size ? `${variant.approx ? '~' : ''}${formatBytes(variant.size)}` : null;
+      const dimensions =
+        kind === 'image' && variant.width && variant.height
+          ? `${variant.width} × ${variant.height}`
+          : null;
       const bits = [
         escapeHtml(String(variant.ext).toUpperCase()),
         size,
-        variant.quality && variant.ext !== 'mp3' ? `${variant.quality}p` : null,
-        variant.fps ? `${variant.fps} fps` : null,
-        variant.kind === 'audio' && variant.bitrate ? `${Math.round(variant.bitrate / 1000)} kbps` : null,
-        variant.kind === 'audio' ? null : 'video',
+        kind === 'video' && variant.quality ? `${variant.quality}p` : null,
+        dimensions,
+        kind === 'video' && variant.fps ? `${variant.fps} fps` : null,
+        kind === 'audio' && variant.bitrate ? `${Math.round(variant.bitrate / 1000)} kbps` : null,
+        kind,
       ].filter(Boolean);
 
       const tags = [
@@ -244,7 +286,7 @@ function renderResult() {
 
       return `
         <div class="variant">
-          <span class="variant-kind ${variant.kind === 'audio' ? 'audio' : ''}">${variant.kind === 'audio' ? ICON.audio : ICON.video}</span>
+          <span class="variant-kind ${kind === 'video' ? '' : kind}">${iconForKind(kind)}</span>
           <div class="variant-text">
             <div class="variant-label">${escapeHtml(variant.label)}${tags}</div>
             <div class="variant-meta">${bits.map((b) => `<span>${b}</span>`).join('')}</div>
@@ -262,7 +304,7 @@ function renderResult() {
           <span class="source-badge" style="--badge-color:${escapeHtml(badgeColor)}">${escapeHtml(result.sourceLabel)}</span>
           ${engine === 'yt-dlp' ? '<span class="tag">resolved by yt-dlp</span>' : ''}
         </div>
-        <h3 class="result-title">${escapeHtml(result.title)}</h3>
+        <h3 class="result-title">${escapeHtml(result.title || 'Untitled')}</h3>
         <div class="result-sub">${metaBits.map((b) => `<span>${b}</span>`).join('')}</div>
         ${result.note ? `<p class="result-note">${escapeHtml(result.note)}</p>` : ''}
       </div>
@@ -340,8 +382,8 @@ function renderJobs() {
       node = template.content.firstElementChild.cloneNode(true);
       node.dataset.job = job.id;
       node.querySelector('.job-badge').style.setProperty('--badge-color', 'var(--accent)');
-      node.querySelector('.job-badge').textContent = job.sourceLabel ?? 'video';
-      node.querySelector('.job-title').textContent = job.filename ?? 'video';
+      node.querySelector('.job-badge').textContent = job.sourceLabel ?? 'media';
+      node.querySelector('.job-title').textContent = job.filename ?? 'file';
       node.querySelector('.job-cancel').addEventListener('click', () => cancelJob(job.id));
       node.querySelector('.job-dismiss').addEventListener('click', () => dismissJob(job.id));
       node.querySelector('.job-reveal').addEventListener('click', () => revealJob(job.id));
@@ -479,11 +521,11 @@ function renderLibrary() {
     .map(
       (file) => `
       <div class="library-item" data-name="${escapeHtml(file.name)}">
-        <span class="variant-kind">${ICON.video}</span>
+        ${fileIcon(file.name)}
         <span class="library-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
         <span class="library-size">${escapeHtml(file.sizeFormatted)}</span>
         <span class="library-size">${escapeHtml(relativeTime(file.modified))}</span>
-        <a class="ghost-btn mini" href="/api/library/file?name=${encodeURIComponent(file.name)}" target="_blank" rel="noopener">Play</a>
+        <a class="ghost-btn mini" href="/api/library/file?name=${encodeURIComponent(file.name)}" target="_blank" rel="noopener">Open</a>
         <a class="ghost-btn mini" href="/api/library/file?name=${encodeURIComponent(file.name)}&download=1" download>Save</a>
         <button type="button" class="ghost-btn mini" data-delete="${escapeHtml(file.name)}">Delete</button>
       </div>`
@@ -576,7 +618,7 @@ $('#paste-btn').addEventListener('click', async () => {
   try {
     const text = await navigator.clipboard.readText();
     if (!text.trim()) {
-      toast('Clipboard is empty', 'Copy a video link first.', { kind: 'info' });
+      toast('Clipboard is empty', 'Copy a link first.', { kind: 'info' });
       return;
     }
     $('#url-input').value = text.trim();

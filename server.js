@@ -77,6 +77,10 @@ const MIME = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.avif': 'image/avif',
+  '.bmp': 'image/bmp',
+  '.tif': 'image/tiff',
+  '.tiff': 'image/tiff',
 };
 
 function sendJson(res, status, payload) {
@@ -239,7 +243,7 @@ route('POST', /^\/api\/resolve$/, async (req, res) => {
   const body = await readJsonBody(req);
   const url = typeof body.url === 'string' ? body.url.trim() : '';
   if (!url) {
-    sendJson(res, 400, { error: 'Paste a video link first.' });
+    sendJson(res, 400, { error: 'Paste a link first.' });
     return;
   }
 

@@ -22,6 +22,9 @@ import { fileURLToPath } from 'node:url';
 
 import { parseMasterPlaylist, parseMediaPlaylist, inspectInitSegment } from '../lib/hls.js';
 import { extractItemFromHtml } from '../lib/extractors/tiktok.js';
+import { parsePin, pinIdFromUrl } from '../lib/extractors/pinterest.js';
+import { direct } from '../lib/extractors/generic.js';
+import { finalizeVariants, scrapeImageCandidate } from '../lib/util.js';
 import { permalinkFor } from '../lib/extractors/reddit.js';
 import { JobManager } from '../lib/jobs.js';
 
@@ -34,6 +37,8 @@ const LIVE = process.argv.includes('--live');
 
 /** A small, stable, public MP4 that accepts range requests. */
 const SAMPLE_MP4 = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+/** A small, stable, public JPEG served without a file extension. */
+const SAMPLE_IMAGE = 'https://httpbin.org/image/jpeg';
 /** A public HLS stream whose audio and video are muxed, so it can be assembled. */
 const SAMPLE_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 
@@ -124,6 +129,97 @@ function testParsers() {
       check('TikTok: item has a description or an id', Boolean(item.desc || item.id || item.aweme_id));
     }
   }
+
+  // --- Pinterest ----------------------------------------------------
+  // Image pins used to hit a deliberate 422; the page data is now parsed
+  // instead of regexing only for `video_url`.
+  check(
+    'Pinterest: pin id parses from a slug URL',
+    pinIdFromUrl('https://www.pinterest.com/pin/cafe-coffee-aesthetic--312859505387286591/') === '312859505387286591',
+    pinIdFromUrl('https://www.pinterest.com/pin/cafe-coffee-aesthetic--312859505387286591/')
+  );
+
+  const pinterestImagePath = path.join(FIXTURES, 'pinterest-image.html');
+  if (!fs.existsSync(pinterestImagePath)) {
+    skip('Pinterest image pin parser', 'fixture missing');
+  } else {
+    const result = parsePin(
+      fs.readFileSync(pinterestImagePath, 'utf8'),
+      'https://www.pinterest.com/pin/312859505387286591/'
+    );
+    const image = result.variants.find((variant) => variant.kind === 'image');
+    check('Pinterest: an image pin yields an image variant', Boolean(image), JSON.stringify(result.variants).slice(0, 250));
+    check(
+      'Pinterest: the image pin uses the original file',
+      image?.url === 'https://i.pinimg.com/originals/8c/cd/5f/8ccd5f13882178cd443f5550aab01b8a.jpg',
+      image?.url
+    );
+    check('Pinterest: image dimensions survive', image?.width === 674 && image?.height === 1198, `${image?.width}x${image?.height}`);
+    check(
+      'Pinterest: image pin keeps its title and author',
+      result.title === 'Fancy Coffee Place' && result.author === 'Malia',
+      `${result.title} / ${result.author}`
+    );
+  }
+
+  const pinterestVideoPath = path.join(FIXTURES, 'pinterest-video.html');
+  if (!fs.existsSync(pinterestVideoPath)) {
+    skip('Pinterest video pin parser', 'fixture missing');
+  } else {
+    const result = parsePin(
+      fs.readFileSync(pinterestVideoPath, 'utf8'),
+      'https://www.pinterest.com/pin/869757746771625616/'
+    );
+    const videos = result.variants.filter((variant) => variant.kind === 'video');
+    check('Pinterest: a video pin yields a video variant', videos.length === 1, JSON.stringify(videos.map((v) => v.label)));
+    check('Pinterest: the video is labelled by its encoded height', videos[0]?.label === '720p', videos[0]?.label);
+    check('Pinterest: the video duration converts from milliseconds', result.duration === 5, String(result.duration));
+    check(
+      'Pinterest: a video pin does not add its cover as an image',
+      !result.variants.some((variant) => variant.kind === 'image'),
+      JSON.stringify(result.variants.map((v) => v.kind))
+    );
+  }
+
+  // --- Images -------------------------------------------------------
+  const genericImagePath = path.join(FIXTURES, 'generic-image.html');
+  if (!fs.existsSync(genericImagePath)) {
+    skip('og:image parser', 'fixture missing');
+  } else {
+    const image = scrapeImageCandidate(
+      fs.readFileSync(genericImagePath, 'utf8'),
+      'https://example.com/posts/cat/'
+    );
+    check(
+      'og:image: relative URLs resolve against the page',
+      image?.url === 'https://example.com/images/cat-on-a-windowsill.jpg',
+      image?.url
+    );
+    check('og:image: width and height are read', image?.width === 1200 && image?.height === 800, `${image?.width}x${image?.height}`);
+    const ldImage = scrapeImageCandidate(
+      '<script type="application/ld+json">{"@type":"Article","image":["https://example.com/ld-one.jpg"]}</script>',
+      'https://example.com/posts/cat/'
+    );
+    check(
+      'JSON-LD: an image array is accepted',
+      ldImage?.url === 'https://example.com/ld-one.jpg',
+      ldImage?.url
+    );
+  }
+
+  check('direct matcher: image extensions are media', direct.match(new URL('https://example.com/cat.png')), 'cat.png');
+  check('direct matcher: video extensions still work', direct.match(new URL('https://example.com/clip.mp4')), 'clip.mp4');
+
+  const ordered = finalizeVariants([
+    { kind: 'audio', ext: 'mp3', url: 'https://example.com/a.mp3', bitrate: 128_000 },
+    { kind: 'image', ext: 'jpg', url: 'https://example.com/b.jpg', width: 1200, height: 1200 },
+    { kind: 'video', ext: 'mp4', url: 'https://example.com/c.mp4', quality: 720 },
+  ]);
+  check(
+    'variants sort video, then image, then audio',
+    ordered.map((variant) => variant.kind).join(',') === 'video,image,audio',
+    ordered.map((variant) => variant.kind).join(',')
+  );
 
   // --- Reddit permalinks -------------------------------------------
   // oEmbed only accepts a full permalink, so losing the subreddit here would
@@ -465,6 +561,75 @@ async function testDownload() {
   return true;
 }
 
+async function testImageDownload() {
+  section('Image download');
+
+  let resolved;
+  try {
+    resolved = await request('/api/resolve', { method: 'POST', body: JSON.stringify({ url: SAMPLE_IMAGE }) });
+  } catch (err) {
+    skip('direct image download', `network: ${err.message}`);
+    return;
+  }
+  if (resolved.status !== 200) {
+    skip('direct image download', `resolve returned ${resolved.status}`);
+    return;
+  }
+
+  const variant = resolved.json?.result?.variants?.[0];
+  check(
+    'an extensionless image URL resolves as a direct image',
+    resolved.json?.engine === 'direct' && variant?.kind === 'image',
+    JSON.stringify(resolved.json).slice(0, 250)
+  );
+  check('image variant keeps the jpg extension', variant?.ext === 'jpg', variant?.ext);
+  check('image variant reports a byte size', (variant?.size ?? 0) > 1000, `size=${variant?.size}`);
+
+  const started = await request('/api/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ rid: resolved.json.rid, variantId: variant.id }),
+  });
+  check(
+    'image job is created',
+    started.status === 201 && typeof started.json?.id === 'string',
+    JSON.stringify(started.json).slice(0, 200)
+  );
+  if (started.status !== 201) return;
+
+  const jobId = started.json.id;
+  let job = started.json;
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline && ['queued', 'downloading', 'processing'].includes(job.status)) {
+    await sleep(350);
+    const list = await request('/api/jobs');
+    job = list.json.jobs.find((entry) => entry.id === jobId) ?? job;
+  }
+
+  check('image download reaches "done"', job.status === 'done', `ended as ${job.status}: ${job.error ?? ''}`);
+  check('image job reports a byte total', (job.total ?? 0) > 1000, `total=${job.total}`);
+  check('image filename keeps the .jpg extension', /\.jpg$/i.test(job.filename ?? ''), job.filename);
+
+  const file = await fetch(`${BASE}/api/jobs/${jobId}/file`);
+  check(
+    'finished image is served as image/jpeg',
+    file.status === 200 && file.headers.get('content-type') === 'image/jpeg',
+    `${file.status} ${file.headers.get('content-type')}`
+  );
+  const head = new Uint8Array(
+    await (await fetch(`${BASE}/api/jobs/${jobId}/file`, { headers: { range: 'bytes=0-2' } })).arrayBuffer()
+  );
+  check(
+    'served bytes start with a JPEG magic number',
+    head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff,
+    [...head].join(',')
+  );
+
+  check(
+    'image job + file can be deleted',
+    (await request(`/api/jobs/${jobId}?file=1`, { method: 'DELETE' })).status === 200
+  );
+}
+
 /* ================================================================== *
  * Live: the extractors
  * ================================================================== */
@@ -571,6 +736,8 @@ async function testLive() {
     // ids are all real, public posts - a good source when hunting samples.
     ['X', 'https://x.com/historyinmemes/status/1790637656616943991'],
     ['TikTok', 'https://www.tiktok.com/@scout2015/video/6718335390845095173'],
+    ['Pinterest image', 'https://www.pinterest.com/pin/312859505387286591/'],
+    ['Pinterest video', 'https://www.pinterest.com/pin/869757746771625616/'],
     ['generic page', 'https://www.w3schools.com/html/html5_video.asp'],
   ];
 
@@ -584,6 +751,20 @@ async function testLive() {
             'generic page: the <source src> mp4 is found',
             res.json.result.variants.some((v) => /\.mp4/.test(v.url ?? '')),
             JSON.stringify(res.json.result.variants.map((v) => v.label))
+          );
+        }
+        if (label === 'Pinterest image') {
+          check(
+            'Pinterest image: an image option is offered',
+            res.json.result.variants.some((v) => v.kind === 'image'),
+            JSON.stringify(res.json.result.variants.map((v) => v.kind))
+          );
+        }
+        if (label === 'Pinterest video') {
+          check(
+            'Pinterest video: a video option is offered',
+            res.json.result.variants.some((v) => v.kind === 'video'),
+            JSON.stringify(res.json.result.variants.map((v) => v.kind))
           );
         }
         if (label === 'X') {
@@ -622,7 +803,7 @@ async function testLive() {
             JSON.stringify(mp4s.map((v) => `${v.label} size=${v.size} approx=${v.approx}`))
           );
         }
-      } else if ([401, 403, 404, 409].includes(res.status)) {
+      } else if ([401, 403, 404, 409, 429].includes(res.status)) {
         skip(`${label} extractor`, `${res.status}: ${String(res.json?.error).slice(0, 110)}`);
       } else {
         check(`${label} resolves`, false, `${res.status}: ${String(res.json?.error).slice(0, 200)}`);
@@ -662,6 +843,7 @@ try {
   testParsers();
   await testServer();
   const netOk = await testDownload();
+  await testImageDownload();
 
   if (!LIVE) {
     section('Live extractors');

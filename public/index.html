@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>SwiftGrab - paste a link, get the video</title>
-    <meta name="description" content="Paste a video link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and more. SwiftGrab pulls the file straight to your machine." />
+    <title>SwiftGrab - paste a link, get the video or image</title>
+    <meta name="description" content="Paste a link from X, TikTok, Facebook, Instagram, Reddit, Vimeo, Pinterest and more. SwiftGrab pulls the video or picture straight to your machine." />
     <meta name="theme-color" content="#0b0d14" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -42,7 +42,7 @@
 
     <main>
       <section class="grabber" aria-labelledby="grab-heading">
-        <h2 id="grab-heading" class="sr-only">Download a video</h2>
+        <h2 id="grab-heading" class="sr-only">Download a video or image</h2>
         <form id="grab-form" autocomplete="off">
           <div class="field">
             <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -55,8 +55,8 @@
               type="text"
               inputmode="url"
               spellcheck="false"
-              placeholder="https://x.com/… · tiktok.com/… · facebook.com/…"
-              aria-label="Video link"
+              placeholder="https://x.com/… · tiktok.com/… · pinterest.com/…"
+              aria-label="Video or image link"
             />
             <button type="button" class="ghost-btn" id="paste-btn" title="Paste from clipboard">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 6H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -99,8 +99,8 @@
 
     <footer class="footer">
       <p>
-        SwiftGrab downloads videos for personal use. Respect each platform's terms and the
-        rights of the people who made the videos you save.
+        SwiftGrab downloads videos and images for personal use. Respect each platform's terms and the
+        rights of the people who made the media you save.
       </p>
     </footer>
 

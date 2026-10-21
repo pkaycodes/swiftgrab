@@ -2,7 +2,7 @@
   "name": "swiftgrab",
   "version": "1.0.0",
   "private": true,
-  "description": "SwiftGrab - paste a video link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and more, get the file. Native extractors with an optional yt-dlp fallback.",
+  "description": "SwiftGrab - paste a link from X, TikTok, Facebook, Instagram, Reddit, Vimeo, Pinterest and more, get the video or image. Native extractors with an optional yt-dlp fallback.",
   "type": "module",
   "engines": {
     "node": ">=18"

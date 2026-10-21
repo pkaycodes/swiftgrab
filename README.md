@@ -2,6 +2,8 @@
 
 Paste a video link, get the file.
 
+![SwiftGrab](docs/screenshot.png)
+
 SwiftGrab is a small local web app: a Node HTTP server plus a browser page. You
 drop in a link from X, TikTok, Facebook, Instagram, Reddit, Vimeo and plenty of
 others, pick a quality, and watch it land in `downloads/`.

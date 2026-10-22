@@ -71,7 +71,7 @@ extra to install:
 | Source | How it works |
 | --- | --- |
 | **X / Twitter** | The syndication payload behind embedded tweets, via the FxTwitter mirror with X's own CDN as fallback. Every MP4 quality on offer. |
-| **TikTok** | The hydration JSON inside the post page, with the mobile photo payload as a fallback. Video posts return every quality; photo posts return each original image. |
+| **TikTok** | Short links (`vt.`, `vm.` and `tiktok.com/t/`) are followed to the post first, then the hydration JSON inside the post page is read, with the mobile photo payload as a fallback. Video posts return every quality; photo posts return each original image. |
 | **Facebook** | The page's own video JSON and, where present, an HLS stream. |
 | **Instagram** | The main post object from the rendered page or GraphQL. Photos, videos and mixed carousels are read from the post itself, never from the recommended posts around it. |
 | **Reddit** | The public post JSON where reachable, otherwise oEmbed for metadata. See [Reddit](#reddit-is-the-awkward-one). |

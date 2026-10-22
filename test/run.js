@@ -21,7 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseMasterPlaylist, parseMediaPlaylist, inspectInitSegment } from '../lib/hls.js';
-import { extractItemFromHtml, variantsFromItem } from '../lib/extractors/tiktok.js';
+import { extractItemFromHtml, variantsFromItem, videoId } from '../lib/extractors/tiktok.js';
 import { parsePage as parseInstagramPage } from '../lib/extractors/instagram.js';
 import { parsePin, pinIdFromUrl } from '../lib/extractors/pinterest.js';
 import { direct } from '../lib/extractors/generic.js';
@@ -110,6 +110,24 @@ function testParsers() {
   section('Parsers (offline, real captured fixtures)');
 
   // --- TikTok ------------------------------------------------------
+  // Short links (vt./vm. and /t/) redirect to a URL whose username may be
+  // blank. The numeric id is still the only part that identifies the post.
+  check(
+    'TikTok: a short-link redirect keeps its post id',
+    videoId(new URL('https://www.tiktok.com/@/video/7600786296574905607?_r=1&share_item_id=7600786296574905607')) ===
+      '7600786296574905607',
+    videoId(new URL('https://www.tiktok.com/@/video/7600786296574905607?_r=1&share_item_id=7600786296574905607'))
+  );
+  check(
+    'TikTok: mobile and embed URLs expose their post id',
+    videoId(new URL('https://m.tiktok.com/v/6718335390845095173.html')) === '6718335390845095173' &&
+      videoId(new URL('https://www.tiktok.com/embed/v2/6718335390845095173')) === '6718335390845095173',
+    [
+      videoId(new URL('https://m.tiktok.com/v/6718335390845095173.html')),
+      videoId(new URL('https://www.tiktok.com/embed/v2/6718335390845095173')),
+    ].join(', ')
+  );
+
   const tiktokHtmlPath = path.join(FIXTURES, 'tiktok-post.html');
   if (!fs.existsSync(tiktokHtmlPath)) {
     skip('TikTok page parser', 'fixture missing');
@@ -810,6 +828,8 @@ async function testLive() {
     ['X', 'https://x.com/historyinmemes/status/1790637656616943991'],
     ['TikTok', 'https://www.tiktok.com/@scout2015/video/6718335390845095173'],
     ['TikTok photo', 'https://www.tiktok.com/@realmadrid/photo/7375648582063459616'],
+    // Shared from the TikTok app; the redirect target has an empty username.
+    ['TikTok short link', 'https://vt.tiktok.com/ZS5gkBNme/'],
     ['Instagram carousel', 'https://www.instagram.com/p/DU_kmW6Eb3G/'],
     ['Pinterest image', 'https://www.pinterest.com/pin/312859505387286591/'],
     ['Pinterest video', 'https://www.pinterest.com/pin/869757746771625616/'],
@@ -851,6 +871,13 @@ async function testLive() {
           check(
             'TikTok photo: the photo post is not turned into a video',
             res.json.result.variants.every((v) => v.kind === 'image'),
+            JSON.stringify(res.json.result.variants.map((v) => v.kind))
+          );
+        }
+        if (label === 'TikTok short link') {
+          check(
+            'TikTok short link: a vt.tiktok.com redirect resolves to a video',
+            res.json.result.variants.some((v) => v.kind === 'video'),
             JSON.stringify(res.json.result.variants.map((v) => v.kind))
           );
         }

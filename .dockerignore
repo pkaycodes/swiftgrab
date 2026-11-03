@@ -1,0 +1,11 @@
+# Downloads
+downloads/*
+!downloads/.gitkeep
+
+# The self-installed yt-dlp binary
+tools/*
+
+# OS noise
+.DS_Store
+*.log
+node_modules/
